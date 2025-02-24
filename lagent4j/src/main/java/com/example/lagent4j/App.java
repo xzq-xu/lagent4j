@@ -14,9 +14,9 @@ public class App {
         
         // 注册可用工具
         List<Action> actions = List.of(
-            new HttpRequestAction(),
+            new HttpRequestAction("httpRequestAction",60),
             new PythonInterpreterAction(),
-            new FileIOAction()
+            new FileIOAction("fileIOAction", "/tmp")
         );
         
         // 创建智能体

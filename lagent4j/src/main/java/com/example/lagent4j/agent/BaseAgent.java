@@ -16,27 +16,27 @@ public abstract class BaseAgent {
         this.actions = actions;
     }
 
-    public CompletableFuture<AgentMessage> processAsync(AgentMessage message, Integer sessionId) {
-        memory.addMessage(sessionId, message);
+    public CompletableFuture<AgentMessage> processAsync(AgentMessage message, long sessionId) {
+        memory.add(sessionId, message);
         return handleMessage(message)
             .thenCompose(response -> {
-                memory.addMessage(sessionId, response);
+                memory.add(sessionId, response);
                 return checkForToolCall(response, sessionId);
             });
     }
 
-    private CompletableFuture<AgentMessage> checkForToolCall(AgentMessage response, Integer sessionId) {
+    private CompletableFuture<AgentMessage> checkForToolCall(AgentMessage response, long sessionId) {
         if (response.getFormatted() instanceof ToolCall toolCall) {
             return executeTool(toolCall, sessionId)
                 .thenCompose(toolResult -> {
-                    memory.addMessage(sessionId, toolResult);
+                    memory.add(sessionId, toolResult);
                     return processAsync(toolResult, sessionId);
                 });
         }
         return CompletableFuture.completedFuture(response);
     }
 
-    private CompletableFuture<AgentMessage> executeTool(ToolCall toolCall, Integer sessionId) {
+    private CompletableFuture<AgentMessage> executeTool(ToolCall toolCall, long sessionId) {
         return actions.stream()
             .filter(action -> toolCall.getToolName().equals(action.getName()))
             .findFirst()

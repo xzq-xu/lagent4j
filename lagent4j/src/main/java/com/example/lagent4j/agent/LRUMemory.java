@@ -1,39 +1,33 @@
 package com.example.lagent4j.agent;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class LRUMemory implements Memory {
     private final int maxSize;
-    private final Map<Integer, Deque<AgentMessage>> sessions = new ConcurrentHashMap<>();
+    private final Map<Long, LinkedList<AgentMessage>> sessions;
 
     public LRUMemory(int maxSize) {
         this.maxSize = maxSize;
+        this.sessions = new ConcurrentHashMap<>();
     }
 
     @Override
-    public void addMessage(Integer sessionId, AgentMessage message) {
-        sessions.compute(sessionId, (k, v) -> {
-            if (v == null) {
-                v = new ArrayDeque<>();
-            }
-            v.addLast(message);
-            while (v.size() > maxSize) {
-                v.removeFirst();
-            }
-            return v;
-        });
+    public List<AgentMessage> get(long sessionId) {
+        return sessions.computeIfAbsent(sessionId, k -> new LinkedList<>());
     }
 
     @Override
-    public Deque<AgentMessage> getMessages(Integer sessionId) {
-        return sessions.getOrDefault(sessionId, new ArrayDeque<>());
+    public void add(long sessionId, AgentMessage message) {
+        LinkedList<AgentMessage> history = sessions.computeIfAbsent(sessionId, k -> new LinkedList<>());
+        history.add(message);
+        while (history.size() > maxSize) {
+            history.removeFirst();
+        }
     }
 
     @Override
-    public void clear(Integer sessionId) {
+    public void clear(long sessionId) {
         sessions.remove(sessionId);
     }
 }

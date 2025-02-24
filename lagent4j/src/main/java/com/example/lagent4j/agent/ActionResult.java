@@ -6,11 +6,12 @@ import lombok.Data;
 @Data
 @Builder
 public class ActionResult {
-    public enum Status {
-        SUCCESS, FAILURE
-    }
-    
     private Status status;
     private String output;
     private String error;
+
+    public enum Status {
+        SUCCESS,
+        FAILURE
+    }
 }

@@ -17,9 +17,9 @@ public class SimpleAgent extends BaseAgent {
     @Override
     protected CompletableFuture<AgentMessage> handleMessage(AgentMessage message) {
         // 获取消息的sessionId
-        Integer sessionId = message.getSessionId();
+        long sessionId = message.getSessionId();
         // 获取消息历史
-        List<AgentMessage> history = new ArrayList<>(memory.getMessages(sessionId));
+        List<AgentMessage> history = new ArrayList<>(memory.get(sessionId));
         // 调用llmService的chatAsync方法，传入消息历史，返回CompletableFuture<AgentMessage>
         return llmService.chatAsync(history)
             // 使用thenApply方法，将返回的response封装成AgentMessage对象
@@ -29,7 +29,7 @@ public class SimpleAgent extends BaseAgent {
                 // 设置消息内容为response
                 .content(response)
                 // 设置消息类型为AGENT
-                .type(AgentMessage.AgentMessageType.AGENT)
+                .type(AgentMessage.AgentMessageType.ASSISTANT)
                 // 设置消息sessionId
                 .sessionId(sessionId)
                 // 构建AgentMessage对象

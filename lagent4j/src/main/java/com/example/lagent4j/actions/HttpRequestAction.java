@@ -1,55 +1,61 @@
 package com.example.lagent4j.actions;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.example.lagent4j.agent.ActionResult;
+import com.example.lagent4j.constants.ToolConstants;
+import com.example.lagent4j.exceptions.ToolException;
 import okhttp3.*;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 public class HttpRequestAction implements Action {
-    private final OkHttpClient client = new OkHttpClient();
-
+    private final String name;
+    private final OkHttpClient client;
+    
+    public HttpRequestAction(String name, int timeoutSeconds) {
+        this.name = name;
+        this.client = new OkHttpClient.Builder()
+            .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+            .writeTimeout(timeoutSeconds, TimeUnit.SECONDS)
+            .build();
+    }
 
     @Override
     public String getName() {
-        return "httpRequestAction";
+        return name;
     }
 
     @Override
     public CompletableFuture<ActionResult> executeAsync(Map<String, Object> parameters) {
-
-
         return CompletableFuture.supplyAsync(() -> {
-            JSONObject params = JSONObject.from(parameters);
-            String url = params.getString("url");
-            String method = params.getString("method");
-            JSONObject headers = params.getJSONObject("headers");
-            String body = params.getString("body");
-
-            Request.Builder requestBuilder = new Request.Builder().url(url);
-
-            if (headers != null) {
-                for (String key : headers.keySet()) {
-                    requestBuilder.addHeader(key, headers.getString(key));
+            try {
+                String url = (String) parameters.get(ToolConstants.URL_KEY);
+                String method = (String) parameters.getOrDefault(ToolConstants.METHOD_KEY, "GET");
+                
+                Request.Builder requestBuilder = new Request.Builder()
+                    .url(url)
+                    .method(method, method.equals("GET") ? null : RequestBody.create(new byte[0], null));
+                
+                try (Response response = client.newCall(requestBuilder.build()).execute()) {
+                    if (!response.isSuccessful()) {
+                        throw new ToolException("HTTP request failed: " + response.code());
+                    }
+                    
+                    String responseBody = response.body().string();
+                    return ActionResult.builder()
+                        .status(ActionResult.Status.SUCCESS)
+                        .output(responseBody)
+                        .build();
                 }
+            } catch (Exception e) {
+                return ActionResult.builder()
+                    .status(ActionResult.Status.FAILURE)
+                    .error(e.getMessage())
+                    .build();
             }
-
-            if ("POST".equalsIgnoreCase(method) && body != null) {
-                requestBuilder.post(RequestBody.create(body, MediaType.get("application/json")));
-            }
-
-            try (Response response = client.newCall(requestBuilder.build()).execute()) {
-                if (!response.isSuccessful()) throw new IOException("Unexpected code " + response);
-                return ActionResult.builder().status(ActionResult.Status.SUCCESS)
-                        .output(response.body().string()).build();
-            }catch (Exception ex){
-                return  ActionResult.builder().status(ActionResult.Status.FAILURE)
-                        .error(ex.getMessage()).build();
-            }
-        }).exceptionally(ex -> {
-            return ActionResult.builder().status(ActionResult.Status.FAILURE).error(ex.getMessage()).build();
         });
     }
 }
