@@ -1,9 +1,10 @@
 name: Sync README
 
+# 同步README.md文件到根目录
 on:
   push:
     branches:
-      - main # 根据你的默认分支名称调整，例如 master
+      - main 
 
 jobs:
   sync-readme:
