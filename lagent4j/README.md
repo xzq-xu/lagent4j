@@ -49,7 +49,7 @@ Lagent4j 的设计理念借鉴了 PyTorch 的层级结构，使工作流程更�
 - **流式响应**：支持流式输出，提升用户体验
 - **钩子系统**：提供钩子机制，方便扩展和自定义行为
 
-## 安装
+<!-- ## 安装
 
 ### Maven
 
@@ -65,7 +65,8 @@ Lagent4j 的设计理念借鉴了 PyTorch 的层级结构，使工作流程更�
 
 ```groovy
 implementation 'io.github.internlm:lagent4j:1.0.0'
-```
+``` -->
+
 
 ## 快速开始
 
