@@ -29,10 +29,9 @@
     <!-- 根日志级别 -->
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
-        <appender-ref ref="ASYNC" />
+        <appender-ref ref="FILE" />
     </root>
 
     <!-- 自定义日志级别 -->
-    <logger name="com.example.lagent4j" level="DEBUG" />
-    <logger name="com.example.lagent4j.actions" level="DEBUG" />
+    <logger name="io.github.internlm.lagent4j" level="DEBUG" />
 </configuration> 
