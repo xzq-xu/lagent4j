@@ -28,59 +28,104 @@
 implementation 'io.github.internlm:lagent4j:0.1.0'
 ```
 
-### 基本配置
+### 基础用法
 
-首先，创建一个语言模型实例：
+#### 创建简单对话代理
+
+最基本的用法是创建一个简单的对话代理：
 
 ```java
-import io.github.internlm.lagent4j.llms.OpenAILLM;
-import io.github.internlm.lagent4j.llms.BaseLLM;
-
-// 创建OpenAI模型实例
-BaseLLM llm = new OpenAILLM(
-    System.getenv("LAGENT4J_MODEL_API_KEY"),  // API密钥
-    System.getenv("LAGENT4J_MODEL_API_URL"),  // API基础URL（可选）
-    System.getenv("LAGENT4J_MODEL_NAME")      // 模型名称，如"gpt-3.5-turbo"
+// 创建OpenAI模型
+OpenAIModel llm = new OpenAIModel(
+    System.getenv("LAGENT4J_MODEL_API_KEY"),
+    System.getenv("LAGENT4J_MODEL_API_URL"),
+    System.getenv("LAGENT4J_MODEL_NAME")
 );
+
+// 创建代理
+String systemPrompt = "你是一个有用的助手，可以回答用户的各种问题。";
+Agent agent = new Agent(llm, systemPrompt, null, null, null, null, "simple_assistant", "一个简单的对话助手");
+
+// 发送消息并获取回复
+String question = "你好，请介绍一下你自己。";
+AgentMessage response = agent.process(question);
+
+// 打印回复
+System.out.println("用户: " + question);
+System.out.println("助手: " + response.getContent());
 ```
 
-### 创建一个简单的Agent
+#### 使用工具
+
+要使用工具，需要创建工具执行器并注册工具：
 
 ```java
-import io.github.internlm.lagent4j.agents.Agent;
-import io.github.internlm.lagent4j.message.AgentMessage;
+// 创建OpenAI模型
+OpenAIModel llm = new OpenAIModel(
+    System.getenv("LAGENT4J_MODEL_API_KEY"),
+    System.getenv("LAGENT4J_MODEL_API_URL"),
+    System.getenv("LAGENT4J_MODEL_NAME")
+);
 
-// 创建一个简单的Agent
-Agent agent = new Agent(llm, "你是一个有用的助手。");
+// 创建JSON解析器
+JsonParser jsonParser = new JsonParser();
 
-// 处理用户消息
-AgentMessage response = agent.process("你好，请介绍一下自己。");
-System.out.println(response.getContent());
-```
-
-### 使用工具
-
-```java
-import io.github.internlm.lagent4j.actions.Action;
-import io.github.internlm.lagent4j.actions.ActionExecutor;
-import io.github.internlm.lagent4j.actions.WebBrowser;
-
-// 创建工具执行器
+// 创建工具执行器并注册工具
 ActionExecutor executor = new ActionExecutor();
-
-// 注册网页浏览器工具
 executor.registerAction(new WebBrowser());
 
-// 创建Agent并处理消息
-Agent agent = new Agent(llm, "你是一个有用的助手，可以使用工具来回答问题。");
-AgentMessage userMessage = new AgentMessage("user", "请查询一下今天的天气。");
+// 创建代理
+String systemPrompt = "你是一个有用的助手，可以使用各种工具来回答问题。" +
+    "当你需要使用工具时，请使用JSON格式回复，包含以下字段：\n" +
+    "- thought: 你的思考过程\n" +
+    "- action: 要使用的工具名称\n" +
+    "- parameters: 工具所需的参数\n\n" +
+    "示例：\n```json\n" +
+    "{\n" +
+    "  \"thought\": \"我需要获取网页内容来回答这个问题\",\n" +
+    "  \"action\": \"web_browser\",\n" +
+    "  \"parameters\": {\"url\": \"https://example.com\"}\n" +
+    "}\n```\n" +
+    "请仔细阅读每个工具的描述和参数要求，确保正确使用。";
 
-// 处理消息并执行工具调用
-AgentMessage response = agent.process(userMessage);
-response = executor.process(response);
-response = agent.process(response);
+Agent agent = new Agent(llm, systemPrompt, null, jsonParser, null, executor, "web_assistant", "能够浏览网页的智能助手");
 
-System.out.println(response.getContent());
+// 发送消息并获取回复
+String question = "请浏览CSDN获取关于MCP协议相关的信息";
+AgentMessage response = agent.process(question);
+
+// 打印回复
+System.out.println("用户: " + question);
+System.out.println("助手: " + response.getContent());
+```
+
+#### 多代理协作
+
+可以创建多个代理进行协作：
+
+```java
+// 创建OpenAI模型
+OpenAIModel llm = new OpenAIModel(
+    System.getenv("LAGENT4J_MODEL_API_KEY"),
+    System.getenv("LAGENT4J_MODEL_API_URL"),
+    System.getenv("LAGENT4J_MODEL_NAME")
+);
+
+// 创建多个代理
+Agent pythonExpert = new Agent(llm, 
+        "你是一个Python专家，擅长编写高效、简洁的Python代码。你的回答应该专注于Python的最佳实践和优化技巧。", 
+        null, null, null, null, "PythonExpert", "Python专家");
+
+Agent javaExpert = new Agent(llm, 
+        "你是一个Java专家，擅长编写高效、简洁的Java代码。你的回答应该专注于Java的最佳实践和优化技巧。", 
+        null, null, null, null, "JavaExpert", "Java专家");
+
+Agent moderator = new Agent(llm, 
+        "你是一个讨论主持人，负责引导和总结讨论。你需要根据用户的问题，向合适的专家提问，并总结他们的回答。", 
+        null, null, null, null, "Moderator", "讨论主持人");
+
+// 开始多代理协作
+// ... 后续代码与MultiAgentExample.java相同 ...
 ```
 
 ## 核心概念

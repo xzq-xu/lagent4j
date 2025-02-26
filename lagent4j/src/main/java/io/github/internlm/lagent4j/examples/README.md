@@ -1,103 +1,138 @@
-# Lagent4j 示例程序
+# lagent4j 示例
 
-本目录包含了 `lagent4j` 框架的各种示例程序，帮助您快速了解和使用该框架的核心功能。这些示例涵盖了从基础对话到复杂工具调用的多种场景，适合不同水平的开发者学习和参考。
+本目录包含了 lagent4j 框架的各种使用示例，帮助你快速上手和理解框架的功能。
 
-## 环境变量设置
+## 环境准备
 
-在运行示例程序前，请先设置以下环境变量：
-
-- `LAGENT4J_MODEL_API_KEY`: 您的API密钥
-- `LAGENT4J_MODEL_API_URL`: API基础URL（可选）
-- `LAGENT4J_MODEL_NAME`: 要使用的模型名称（例如："gpt-3.5-turbo"）
-
-## 示例程序列表
-
-### SimpleExample.java
-
-这是一个基础示例，展示了如何创建一个简单的对话智能体。该示例演示了：
-
-- 如何初始化语言模型
-- 如何创建一个基本的Agent
-- 如何处理用户输入并获取回复
-
-适合初学者了解框架的基本用法。
-
-### ToolExample.java
-
-这个示例展示了如何创建一个可以调用工具的智能体。该示例演示了：
-
-- 如何注册和使用工具
-- 如何处理工具调用的结果
-- 如何让智能体根据工具执行结果生成回复
-
-适合需要实现复杂功能的开发者参考。
-
-### StreamExample.java
-
-这个示例展示了如何处理流式输出。该示例演示了：
-
-- 如何设置流式处理回调
-- 如何实时接收和处理模型生成的内容
-- 如何处理流式输出中的错误和完成事件
-
-适合需要实现实时交互界面的开发者参考。
-
-### WebBrowserExample.java
-
-这个示例展示了如何使用网页浏览器工具获取网页内容。该示例演示了：
-
-- 如何创建和配置WebBrowser工具
-- 如何让智能体使用浏览器工具获取网页信息
-- 如何处理网页内容并生成回复
-
-适合需要实现网页内容分析功能的开发者参考。
-
-### MultiAgentExample.java
-
-这个示例展示了多智能体协作的场景。该示例演示了：
-
-- 如何创建多个具有不同角色的智能体
-- 如何实现智能体之间的消息传递
-- 如何协调多个智能体完成复杂任务
-
-适合需要实现复杂系统的高级开发者参考。
-
-## 运行示例
-
-### Linux/Mac
+在运行示例之前，请确保设置以下环境变量：
 
 ```bash
-# 编译并运行示例
-cd lagent4j
-mvn compile
-mvn exec:java -Dexec.mainClass="io.github.internlm.lagent4j.examples.SimpleExample"
+# OpenAI API密钥
+export OPENAI_API_KEY=your_openai_api_key
+
+# Bing搜索API密钥（用于网页搜索示例）
+export BING_API_KEY=your_bing_api_key
 ```
 
-### Windows
+## 示例列表
 
-```cmd
-# 编译并运行示例
-cd lagent4j
-mvn compile
-mvn exec:java -Dexec.mainClass="io.github.internlm.lagent4j.examples.SimpleExample"
+### 1. 简单对话 (SimpleExample.java)
+演示如何创建一个基本的对话代理，进行简单的问答交互。
+
+```java
+OpenAIModel model = new OpenAIModel.Builder()
+        .apiKey(System.getenv("OPENAI_API_KEY"))
+        .model("gpt-3.5-turbo")
+        .build();
+
+Agent agent = new Agent(model, "你是一个有帮助的助手");
+AgentMessage response = agent.process(new AgentMessage("user", "你好！"));
+System.out.println(response.getContent());
 ```
 
-您可以将上述命令中的类名替换为其他示例类名来运行不同的示例。
+### 2. 流式输出 (StreamExample.java)
+展示如何使用流式输出功能，实时获取模型的响应。
 
-## 自定义示例
+```java
+OpenAIModel model = new OpenAIModel.Builder()
+        .apiKey(System.getenv("OPENAI_API_KEY"))
+        .model("gpt-3.5-turbo")
+        .build();
 
-如果您想基于这些示例创建自己的应用，可以按照以下步骤操作：
+AsyncStreamAgent agent = new AsyncStreamAgent(model, "你是一个支持流式输出的助手");
+agent.processStream(question, 1, new StreamCallback() {
+    @Override
+    public void onChunk(String chunk, ModelStatusCode status) {
+        if (status == ModelStatusCode.GENERATING) {
+            System.out.print(chunk);
+        }
+    }
+    // ... 其他回调方法
+});
+```
 
-1. 复制最接近您需求的示例代码
-2. 修改模型参数、提示词或工具实现
-3. 添加您自己的业务逻辑
-4. 根据需要扩展或组合多个示例的功能
+### 3. 工具使用 (ToolExample.java)
+演示如何创建和使用工具，扩展代理的能力。
 
-例如，您可以结合 `ToolExample` 和 `StreamExample` 的功能，创建一个支持流式输出的工具调用应用。
+```java
+ActionExecutor executor = new ActionExecutor();
+executor.registerAction(new WebBrowserAction());
+
+Agent agent = new Agent(model, template, memory, parser, aggregator, executor);
+AgentMessage response = agent.process(new AgentMessage("user", "查询今天的天气"));
+```
+
+### 4. 多代理协作 (MultiAgentExample.java)
+展示如何创建多个专业领域的代理，并让它们协同工作。
+
+```java
+Agent pythonExpert = new Agent(model, "你是Python专家");
+Agent javaExpert = new Agent(model, "你是Java专家");
+Agent moderator = new Agent(model, "你是讨论主持人");
+
+// 让专家们讨论问题
+moderator.process(question);
+pythonExpert.process(question);
+javaExpert.process(question);
+```
+
+### 5. 异步流式处理 (AsyncStreamExample.java)
+展示如何使用异步流式代理，结合工具使用进行实时信息查询。
+
+```java
+AsyncStreamAgent agent = new AsyncStreamAgent(
+        model,                  // 语言模型
+        systemPrompt,          // 系统提示
+        memory,                // 内存配置
+        new StrParser(),       // 输出格式解析器
+        new DefaultAggregator(), // 消息聚合器
+        executor,              // 工具执行器
+        "stream_assistant",    // 代理名称
+        "支持流式输出的智能助手"  // 代理描述
+);
+
+agent.processStream(question, sessionId, new StreamCallback() {
+    // ... 处理回调
+});
+```
+
+### 6. 网页浏览 (WebBrowserExample.java)
+演示如何使用网页浏览工具进行实时信息搜索。
+
+```java
+OpenAIModel model = new OpenAIModel.Builder()
+        .apiKey(System.getenv("OPENAI_API_KEY"))
+        .model("gpt-3.5-turbo")
+        .build();
+
+ActionExecutor executor = new ActionExecutor();
+executor.registerAction(new WebBrowserAction());
+
+Agent agent = new Agent(model, "你是一个可以搜索网页的助手", executor);
+agent.process(new AgentMessage("user", "查询最新的科技新闻"));
+```
 
 ## 注意事项
 
-- 示例程序主要用于演示目的，生产环境中应添加适当的错误处理和日志记录
-- 请确保您的API密钥安全，不要将其硬编码在源代码中
-- 对于长时间运行的操作，建议添加超时控制
-- 处理大量会话时，注意内存管理和资源释放 
+1. 请确保在运行示例前设置好所需的环境变量。
+2. 部分示例可能需要网络连接和API访问权限。
+3. 建议先阅读代码注释，了解示例的具体功能和使用方法。
+4. 可以根据需要修改示例代码，探索更多使用场景。
+
+## 自定义配置
+
+OpenAIModel 支持多种配置选项：
+
+```java
+OpenAIModel model = new OpenAIModel.Builder()
+        .apiKey("your_api_key")           // API密钥
+        .baseUrl("your_base_url")         // 自定义基础URL（可选）
+        .model("gpt-3.5-turbo")           // 模型名称
+        .temperature(0.7)                  // 温度参数
+        .maxTokens(2048)                  // 最大生成长度
+        .topP(1.0)                        // Top P参数
+        .frequencyPenalty(0.0)            // 频率惩罚
+        .presencePenalty(0.0)             // 存在惩罚
+        .timeoutSeconds(60)               // 超时时间
+        .build();
+``` 

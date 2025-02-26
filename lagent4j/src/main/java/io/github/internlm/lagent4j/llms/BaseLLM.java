@@ -1,8 +1,11 @@
 package io.github.internlm.lagent4j.llms;
 
+import io.github.internlm.lagent4j.schema.ModelStatusCode;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -12,10 +15,10 @@ import java.util.function.Consumer;
  */
 public interface BaseLLM {
     /**
-     * 同步聊天方法
+     * 同步聊天
      *
-     * @param messages 消息列表，通常包含角色和内容
-     * @return 模型的回复文本
+     * @param messages 消息列表
+     * @return 模型响应
      */
     String chat(List<Map<String, String>> messages);
     
@@ -26,7 +29,9 @@ public interface BaseLLM {
      * @param params   额外的参数，如温度、最大生成长度等
      * @return 模型的回复文本
      */
-    String chat(List<Map<String, String>> messages, Map<String, Object> params);
+    default String chat(List<Map<String, String>> messages, Map<String, Object> params) {
+        return chat(messages);
+    }
     
     /**
      * 异步聊天方法
@@ -43,33 +48,37 @@ public interface BaseLLM {
      * @param params   额外的参数，如温度、最大生成长度等
      * @return 包含模型回复文本的CompletableFuture
      */
-    CompletableFuture<String> chatAsync(List<Map<String, String>> messages, Map<String, Object> params);
+    default CompletableFuture<String> chatAsync(List<Map<String, String>> messages, Map<String, Object> params) {
+        return chatAsync(messages);
+    }
     
     /**
      * 流式聊天方法，通过回调函数处理流式输出
      *
      * @param messages       消息列表，通常包含角色和内容
-     * @param chunkConsumer  处理每个文本块的消费者函数
-     * @param errorConsumer  处理错误的消费者函数
-     * @param doneConsumer   处理完成事件的消费者函数
+     * @param onChunk        处理每个响应块的回调函数
+     * @param onError        处理错误的回调函数
+     * @param onComplete     处理完成的回调函数
      */
-    void chatStream(List<Map<String, String>> messages, 
-                   Consumer<String> chunkConsumer, 
-                   Consumer<Throwable> errorConsumer, 
-                   Runnable doneConsumer);
+    void chatStream(List<Map<String, String>> messages,
+                   Consumer<String> onChunk,
+                   Consumer<Throwable> onError,
+                   Runnable onComplete);
     
     /**
      * 流式聊天方法，带有额外参数，通过回调函数处理流式输出
      *
      * @param messages       消息列表，通常包含角色和内容
      * @param params         额外的参数，如温度、最大生成长度等
-     * @param chunkConsumer  处理每个文本块的消费者函数
-     * @param errorConsumer  处理错误的消费者函数
-     * @param doneConsumer   处理完成事件的消费者函数
+     * @param onChunk        处理每个文本块的消费者函数
+     * @param onError        处理错误的消费者函数
+     * @param onComplete     处理完成事件的消费者函数
      */
-    void chatStream(List<Map<String, String>> messages, 
-                   Map<String, Object> params,
-                   Consumer<String> chunkConsumer, 
-                   Consumer<Throwable> errorConsumer, 
-                   Runnable doneConsumer);
+    default void chatStream(List<Map<String, String>> messages,
+                          Map<String, Object> params,
+                          Consumer<String> onChunk,
+                          Consumer<Throwable> onError,
+                          Runnable onComplete) {
+        chatStream(messages, onChunk, onError, onComplete);
+    }
 } 
