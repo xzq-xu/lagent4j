@@ -14,7 +14,7 @@ jobs:
 
       - name: Sync README files
         run: |
-          cp doc/README.md README.md
+          cp lagent4j/README.md
 
       - name: Check for changes
         id: changed
