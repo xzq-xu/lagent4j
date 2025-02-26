@@ -1,0 +1,3 @@
+[submodule "lagent"]
+	path = lagent
+	url = https://github.com/InternLM/lagent.git
