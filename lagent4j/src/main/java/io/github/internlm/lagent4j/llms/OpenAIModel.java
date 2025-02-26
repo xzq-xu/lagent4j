@@ -7,208 +7,254 @@ import okhttp3.*;
 import okio.BufferedSource;
 
 import java.io.IOException;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 /**
- * OpenAI模型实现
- * <p>
- * 通过OpenAI API实现大型语言模型功能
+ * OpenAI语言模型实现
  */
 @Slf4j
-public class OpenAIModel extends AbstractLLM {
-    /**
-     * OpenAI API密钥
-     */
-    private final String apiKey;
-    
-    /**
-     * API基础URL
-     */
+public class OpenAIModel implements BaseLLM {
+    private static final MediaType JSON_MEDIA_TYPE = MediaType.parse("application/json; charset=utf-8");
+    private final OkHttpClient client;
     private final String baseUrl;
-    
+    private final String apiKey;
+    private final Map<String, Object> defaultParams;
+
     /**
-     * 模型名称
+     * 私有构造函数，通过Builder创建实例
      */
-    private final String model;
-    
-    /**
-     * HTTP客户端
-     */
-    private final OkHttpClient httpClient;
-    
-    /**
-     * 创建一个OpenAI模型实例
-     *
-     * @param apiKey OpenAI API密钥
-     */
-    public OpenAIModel(String apiKey) {
-        this(apiKey, "https://api.openai.com/v1", "gpt-3.5-turbo");
-    }
-    
-    /**
-     * 创建一个OpenAI模型实例
-     *
-     * @param apiKey  OpenAI API密钥
-     * @param model   模型名称
-     */
-    public OpenAIModel(String apiKey, String model) {
-        this(apiKey, "https://api.openai.com/v1", model);
-    }
-    
-    /**
-     * 创建一个OpenAI模型实例
-     *
-     * @param apiKey  OpenAI API密钥
-     * @param baseUrl API基础URL
-     * @param model   模型名称
-     */
-    public OpenAIModel(String apiKey, String baseUrl, String model) {
-        super(createDefaultParams());
-        this.apiKey = apiKey;
-        this.baseUrl = baseUrl;
-        this.model = model;
-        this.httpClient = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
+    private OpenAIModel(Builder builder) {
+        // 创建HTTP客户端
+        this.client = new OkHttpClient.Builder()
+                .connectTimeout(Duration.ofSeconds(builder.timeoutSeconds))
+                .callTimeout(Duration.ofSeconds(builder.timeoutSeconds))
+                .readTimeout(Duration.ofSeconds(builder.timeoutSeconds))
+                .writeTimeout(Duration.ofSeconds(builder.timeoutSeconds))
                 .build();
+
+        // 设置基础URL和API密钥
+        this.baseUrl = builder.baseUrl != null && !builder.baseUrl.isEmpty() 
+                ? builder.baseUrl.replaceAll("/$", "") 
+                : "https://api.openai.com/v1";
+        this.apiKey = builder.apiKey;
+
+        // 设置默认参数
+        this.defaultParams = new HashMap<>();
+        this.defaultParams.put("model", builder.model);
+        this.defaultParams.put("temperature", builder.temperature);
+        this.defaultParams.put("max_tokens", builder.maxTokens);
+        this.defaultParams.put("top_p", builder.topP);
+        this.defaultParams.put("frequency_penalty", builder.frequencyPenalty);
+        this.defaultParams.put("presence_penalty", builder.presencePenalty);
     }
-    
-    /**
-     * 创建默认参数
-     *
-     * @return 默认参数Map
-     */
-    private static Map<String, Object> createDefaultParams() {
-        Map<String, Object> params = new HashMap<>();
-        params.put("temperature", 0.7);
-        params.put("max_tokens", 1024);
-        params.put("top_p", 1.0);
-        params.put("frequency_penalty", 0.0);
-        params.put("presence_penalty", 0.0);
-        return params;
+
+    @Override
+    public String chat(List<Map<String, String>> messages) {
+        return chat(messages, defaultParams);
     }
-    
+
     @Override
     public String chat(List<Map<String, String>> messages, Map<String, Object> params) {
-        Map<String, Object> mergedParams = mergeParams(params);
-        
-        // 构建请求体
-        Map<String, Object> requestBody = new HashMap<>(mergedParams);
-        requestBody.put("model", model);
-        requestBody.put("messages", messages);
-        
-        // 创建HTTP请求
-        Request request = new Request.Builder()
-                .url(baseUrl + "/chat/completions")
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .post(RequestBody.create(
-                        JSON.toJSONString(requestBody),
-                        MediaType.parse("application/json")))
-                .build();
-        
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-                log.error("OpenAI API error: {}", errorBody);
-                throw new RuntimeException("OpenAI API error: " + errorBody);
+        try {
+            // 构建请求体
+            Map<String, Object> requestBody = buildRequestBody(messages, params);
+            String jsonBody = JSON.toJSONString(requestBody);
+
+            // 构建请求
+            Request request = new Request.Builder()
+                    .url(baseUrl + "/chat/completions")
+                    .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
+                    .addHeader("Authorization", "Bearer " + apiKey)
+                    .build();
+
+            // 发送请求
+            try (Response response = client.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    throw new IOException("Unexpected response: " + response);
+                }
+
+                // 解析响应
+                String responseBody = response.body().string();
+                JSONObject jsonResponse = JSON.parseObject(responseBody);
+                return jsonResponse.getJSONArray("choices")
+                        .getJSONObject(0)
+                        .getJSONObject("message")
+                        .getString("content");
             }
-            
-            String responseBody = response.body().string();
-            JSONObject jsonResponse = JSON.parseObject(responseBody);
-            
-            return jsonResponse.getJSONArray("choices")
-                    .getJSONObject(0)
-                    .getJSONObject("message")
-                    .getString("content");
-        } catch (IOException e) {
-            log.error("Error calling OpenAI API", e);
-            throw new RuntimeException("Error calling OpenAI API", e);
+        } catch (Exception e) {
+            log.error("Error in chat request: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to get chat response", e);
         }
     }
-    
+
     @Override
-    public void chatStream(List<Map<String, String>> messages, 
-                          Map<String, Object> params,
-                          Consumer<String> chunkConsumer, 
-                          Consumer<Throwable> errorConsumer, 
-                          Runnable doneConsumer) {
-        Map<String, Object> mergedParams = mergeParams(params);
-        
-        // 构建请求体
-        Map<String, Object> requestBody = new HashMap<>(mergedParams);
-        requestBody.put("model", model);
-        requestBody.put("messages", messages);
-        requestBody.put("stream", true);
-        
-        // 创建HTTP请求
-        Request request = new Request.Builder()
-                .url(baseUrl + "/chat/completions")
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .post(RequestBody.create(
-                        JSON.toJSONString(requestBody),
-                        MediaType.parse("application/json")))
-                .build();
-        
-        httpClient.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                errorConsumer.accept(e);
-            }
-            
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                if (!response.isSuccessful()) {
-                    String errorBody = response.body() != null ? response.body().string() : "Unknown error";
-                    errorConsumer.accept(new RuntimeException("OpenAI API error: " + errorBody));
-                    return;
+    public CompletableFuture<String> chatAsync(List<Map<String, String>> messages) {
+        return chatAsync(messages, defaultParams);
+    }
+
+    @Override
+    public CompletableFuture<String> chatAsync(List<Map<String, String>> messages, Map<String, Object> params) {
+        return CompletableFuture.supplyAsync(() -> chat(messages, params));
+    }
+
+    @Override
+    public void chatStream(List<Map<String, String>> messages,
+                         Consumer<String> onChunk,
+                         Consumer<Throwable> onError,
+                         Runnable onComplete) {
+        chatStream(messages, defaultParams, onChunk, onError, onComplete);
+    }
+
+    @Override
+    public void chatStream(List<Map<String, String>> messages,
+                         Map<String, Object> params,
+                         Consumer<String> onChunk,
+                         Consumer<Throwable> onError,
+                         Runnable onComplete) {
+        try {
+            // 构建请求体
+            Map<String, Object> requestBody = buildRequestBody(messages, params);
+            requestBody.put("stream", true);
+            String jsonBody = JSON.toJSONString(requestBody);
+
+            // 构建请求
+            Request request = new Request.Builder()
+                    .url(baseUrl + "/chat/completions")
+                    .post(RequestBody.create(jsonBody, JSON_MEDIA_TYPE))
+                    .addHeader("Authorization", "Bearer " + apiKey)
+                    .build();
+
+            // 发送请求
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onFailure(Call call, IOException e) {
+                    onError.accept(e);
                 }
-                
-                try (ResponseBody responseBody = response.body()) {
-                    if (responseBody == null) {
-                        errorConsumer.accept(new RuntimeException("Empty response body"));
-                        return;
-                    }
-                    
-                    BufferedSource source = responseBody.source();
-                    while (!source.exhausted()) {
-                        String line = source.readUtf8Line();
-                        if (line == null || line.isEmpty()) {
-                            continue;
+
+                @Override
+                public void onResponse(Call call, Response response) {
+                    try {
+                        if (!response.isSuccessful() || response.body() == null) {
+                            throw new IOException("Unexpected response: " + response);
                         }
-                        
-                        if (line.startsWith("data: ")) {
-                            String data = line.substring(6);
-                            if ("[DONE]".equals(data)) {
-                                break;
-                            }
-                            
-                            try {
-                                JSONObject jsonData = JSON.parseObject(data);
-                                JSONObject choice = jsonData.getJSONArray("choices").getJSONObject(0);
-                                JSONObject delta = choice.getJSONObject("delta");
-                                
-                                if (delta.containsKey("content")) {
-                                    String content = delta.getString("content");
-                                    chunkConsumer.accept(content);
+
+                        // 读取SSE流
+                        try (ResponseBody responseBody = response.body()) {
+                            BufferedSource source = responseBody.source();
+                            while (!source.exhausted()) {
+                                String line = source.readUtf8Line();
+                                if (line == null || line.isEmpty()) continue;
+                                if (line.startsWith("data: ")) {
+                                    String data = line.substring(6);
+                                    if (data.equals("[DONE]")) {
+                                        onComplete.run();
+                                        break;
+                                    }
+
+                                    // 解析数据
+                                    JSONObject jsonChunk = JSON.parseObject(data);
+                                    String content = jsonChunk.getJSONArray("choices")
+                                            .getJSONObject(0)
+                                            .getJSONObject("delta")
+                                            .getString("content");
+
+                                    if (content != null) {
+                                        onChunk.accept(content);
+                                    }
                                 }
-                            } catch (Exception e) {
-                                log.warn("Error parsing stream data: {}", data, e);
                             }
                         }
+                    } catch (Exception e) {
+                        onError.accept(e);
                     }
-                    
-                    doneConsumer.run();
-                } catch (Exception e) {
-                    errorConsumer.accept(e);
                 }
+            });
+        } catch (Exception e) {
+            onError.accept(e);
+        }
+    }
+
+    private Map<String, Object> buildRequestBody(List<Map<String, String>> messages, Map<String, Object> params) {
+        Map<String, Object> mergedParams = new HashMap<>(defaultParams);
+        if (params != null) {
+            mergedParams.putAll(params);
+        }
+
+        Map<String, Object> requestBody = new HashMap<>(mergedParams);
+        requestBody.put("messages", messages);
+        return requestBody;
+    }
+
+    /**
+     * OpenAIModel的构建器
+     */
+    public static class Builder {
+        private String apiKey;
+        private String baseUrl;
+        private String model = "gpt-3.5-turbo";
+        private double temperature = 0.7;
+        private int maxTokens = 2048;
+        private double topP = 1.0;
+        private double frequencyPenalty = 0.0;
+        private double presencePenalty = 0.0;
+        private int timeoutSeconds = 120;
+
+        public Builder apiKey(String apiKey) {
+            this.apiKey = apiKey;
+            return this;
+        }
+
+        public Builder baseUrl(String baseUrl) {
+            this.baseUrl = baseUrl;
+            return this;
+        }
+
+        public Builder model(String model) {
+            this.model = model;
+            return this;
+        }
+
+        public Builder temperature(double temperature) {
+            this.temperature = temperature;
+            return this;
+        }
+
+        public Builder maxTokens(int maxTokens) {
+            this.maxTokens = maxTokens;
+            return this;
+        }
+
+        public Builder topP(double topP) {
+            this.topP = topP;
+            return this;
+        }
+
+        public Builder frequencyPenalty(double frequencyPenalty) {
+            this.frequencyPenalty = frequencyPenalty;
+            return this;
+        }
+
+        public Builder presencePenalty(double presencePenalty) {
+            this.presencePenalty = presencePenalty;
+            return this;
+        }
+
+        public Builder timeoutSeconds(int timeoutSeconds) {
+            this.timeoutSeconds = timeoutSeconds;
+            return this;
+        }
+
+        public OpenAIModel build() {
+            if (apiKey == null || apiKey.isEmpty()) {
+                throw new IllegalStateException("API key must be provided");
             }
-        });
+            return new OpenAIModel(this);
+        }
     }
 } 

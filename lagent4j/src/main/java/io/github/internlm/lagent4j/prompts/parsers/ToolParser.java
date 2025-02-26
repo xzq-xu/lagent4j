@@ -1,6 +1,8 @@
 package io.github.internlm.lagent4j.prompts.parsers;
 
-import io.github.internlm.lagent4j.prompts.StrParser;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
+import io.github.internlm.lagent4j.prompts.Parser;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -12,7 +14,7 @@ import java.util.regex.Pattern;
  * <p>
  * 用于解析模型输出中的工具调用部分
  */
-public class ToolParser implements StrParser {
+public class ToolParser implements Parser {
     /**
      * 工具类型
      */
@@ -47,9 +49,14 @@ public class ToolParser implements StrParser {
      * @param toolType 工具类型
      */
     public ToolParser(String toolType) {
-        this(toolType, "```", "```");
+        this(toolType, "<tool>", "</tool>");
     }
-    
+
+    public ToolParser(){
+        this("tool");
+    }
+
+
     @Override
     public Object parseResponse(String response) {
         Map<String, Object> result = new HashMap<>();
@@ -71,8 +78,10 @@ public class ToolParser implements StrParser {
             }
             
             // 提取代码块内容作为动作
-            action = matcher.group(1).trim();
-            
+            String toolIn = matcher.group(1).trim();
+            JSONObject toolObj = JSON.parseObject(toolIn);
+            action = toolObj.getString("name");
+            result.putAll(toolObj);
             // 设置状态为有效
             result.put("status", 1);
         } else {

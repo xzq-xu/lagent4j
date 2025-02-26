@@ -11,6 +11,9 @@
 - 工具调用
 - 流式输出
 - 解析器
+- 多代理协作
+- 异步处理
+- 工具状态监控
 
 ✅ 示例代码已完成：
 - 简单对话示例
@@ -18,16 +21,20 @@
 - 流式输出示例
 - 多代理协作示例
 - Web浏览器工具示例
+- 异步处理示例
 
 ✅ 测试已完成：
 - 内存管理测试
 - Agent测试
 - 解析器测试
+- 工具执行测试
+- 异步处理测试
 
 ✅ 文档已完成：
 - API文档
 - 使用指南
 - 贡献指南
+- 更新日志
 
 ## 简介
 
@@ -46,6 +53,10 @@ Lagent4j 的设计理念借鉴了 PyTorch 的层级结构，使工作流程更�
 - **异步支持**：提供异步 API 以支持高并发应用
 - **流式响应**：支持流式输出，提升用户体验
 - **钩子系统**：提供钩子机制，方便扩展和自定义行为
+- **工具状态监控**：实时监控工具执行状态和进度
+- **错误恢复**：支持工具执行错误的自动恢复
+- **并行执行**：支持多个工具的并行执行
+- **超时控制**：灵活的任务超时管理
 
 ## 安装
 
@@ -55,14 +66,14 @@ Lagent4j 的设计理念借鉴了 PyTorch 的层级结构，使工作流程更�
 <dependency>
     <groupId>io.github.internlm</groupId>
     <artifactId>lagent4j</artifactId>
-    <version>0.1.0</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
 ### Gradle
 
 ```groovy
-implementation 'io.github.internlm:lagent4j:0.1.0'
+implementation 'io.github.internlm:lagent4j:1.0.0'
 ```
 
 ## 快速开始
@@ -70,25 +81,23 @@ implementation 'io.github.internlm:lagent4j:0.1.0'
 ### 基本用法
 
 ```java
-import io.github.internlm.lagent4j.agents.Agent;
-import io.github.internlm.lagent4j.llms.OpenAILLM;
-import io.github.internlm.lagent4j.llms.BaseLLM;
-import io.github.internlm.lagent4j.message.AgentMessage;
+import io.github.internlm.lagent4j.agents.SyncAgent;
+import io.github.internlm.lagent4j.llms.OpenAIModel;
+import io.github.internlm.lagent4j.schema.AgentMessage;
 
 public class QuickStart {
     public static void main(String[] args) {
-        // 创建LLM模型
-        BaseLLM llm = new OpenAILLM(
-            System.getenv("LAGENT4J_MODEL_API_KEY"),
-            System.getenv("LAGENT4J_MODEL_API_URL"),
-            System.getenv("LAGENT4J_MODEL_NAME")
-        );
+        // 创建OpenAI模型
+        OpenAIModel model = new OpenAIModel.Builder()
+                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .model("gpt-3.5-turbo")
+                .build();
         
-        // 创建代理
-        Agent agent = new Agent(llm, "你是一个有用的助手。");
+        // 创建同步代理
+        SyncAgent agent = new SyncAgent(model, "你是一个有用的助手。");
         
         // 发送消息并获取回复
-        AgentMessage response = agent.process("今天天气怎么样？");
+        AgentMessage response = agent.process(new AgentMessage("user", "今天天气怎么样？"));
         
         System.out.println(response.getContent());
     }
@@ -98,73 +107,84 @@ public class QuickStart {
 ### 使用工具
 
 ```java
-import io.github.internlm.lagent4j.actions.Action;
-import io.github.internlm.lagent4j.actions.ActionExecutor;
-import io.github.internlm.lagent4j.actions.WebBrowser;
-import io.github.internlm.lagent4j.agents.Agent;
-import io.github.internlm.lagent4j.llms.OpenAILLM;
-import io.github.internlm.lagent4j.llms.BaseLLM;
-import io.github.internlm.lagent4j.message.AgentMessage;
+import io.github.internlm.lagent4j.actions.*;
+import io.github.internlm.lagent4j.agents.SyncAgent;
+import io.github.internlm.lagent4j.llms.OpenAIModel;
+import io.github.internlm.lagent4j.schema.AgentMessage;
 
 public class ToolExample {
     public static void main(String[] args) {
-        // 创建LLM模型
-        BaseLLM llm = new OpenAILLM(
-            System.getenv("LAGENT4J_MODEL_API_KEY"),
-            System.getenv("LAGENT4J_MODEL_API_URL"),
-            System.getenv("LAGENT4J_MODEL_NAME")
-        );
-        
-        // 创建代理
-        Agent agent = new Agent(llm, "你是一个有用的助手，可以使用工具来回答问题。");
+        // 创建OpenAI模型
+        OpenAIModel model = new OpenAIModel.Builder()
+                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .model("gpt-3.5-turbo")
+                .build();
         
         // 创建工具执行器
         ActionExecutor executor = new ActionExecutor();
         executor.registerAction(new WebBrowser());
+        executor.registerAction(new WebSearch());
+        
+        // 创建代理
+        SyncAgent agent = new SyncAgent(
+                model,
+                "你是一个有用的助手，可以使用工具来回答问题。",
+                executor
+        );
         
         // 发送消息并获取回复
-        AgentMessage userMessage = new AgentMessage("user", "请查询一下今天的天气。");
-        
-        // 处理消息并执行工具调用
-        AgentMessage response = agent.process(userMessage);
-        response = executor.process(response);
-        response = agent.process(response);
+        AgentMessage response = agent.process(
+            new AgentMessage("user", "请搜索Java 21的主要新特性并总结。")
+        );
         
         System.out.println(response.getContent());
     }
 }
 ```
 
-### 流式输出
+### 异步流式输出
 
 ```java
-import io.github.internlm.lagent4j.llms.OpenAILLM;
-import io.github.internlm.lagent4j.llms.BaseLLM;
+import io.github.internlm.lagent4j.agents.AsyncStreamAgent;
+import io.github.internlm.lagent4j.llms.OpenAIModel;
+import io.github.internlm.lagent4j.schema.AgentMessage;
+import io.github.internlm.lagent4j.schema.ModelStatusCode;
 
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-
-public class StreamExample {
+public class AsyncStreamExample {
     public static void main(String[] args) {
-        // 创建LLM模型
-        BaseLLM llm = new OpenAILLM(
-            System.getenv("LAGENT4J_MODEL_API_KEY"),
-            System.getenv("LAGENT4J_MODEL_API_URL"),
-            System.getenv("LAGENT4J_MODEL_NAME")
+        // 创建OpenAI模型
+        OpenAIModel model = new OpenAIModel.Builder()
+                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .model("gpt-3.5-turbo")
+                .build();
+        
+        // 创建异步流式代理
+        AsyncStreamAgent agent = new AsyncStreamAgent(
+                model,
+                "你是一个有用的助手。"
         );
         
-        // 流式处理回调
-        Consumer<String> onChunk = chunk -> System.out.print(chunk);
-        Consumer<Throwable> onError = error -> System.err.println("\n错误: " + error.getMessage());
-        Runnable onDone = () -> System.out.println("\n流式输出完成");
-        
-        // 流式聊天
-        List<Map<String, String>> messages = List.of(
-            Map.of("role", "user", "content", "请生成一个长故事")
+        // 处理消息
+        agent.processStream(
+            new AgentMessage("user", "请生成一个长故事"),
+            1,
+            new AsyncStreamAgent.StreamCallback() {
+                @Override
+                public void onChunk(String chunk, ModelStatusCode status) {
+                    System.out.print(chunk);
+                }
+                
+                @Override
+                public void onError(Throwable error) {
+                    System.err.println("\n错误: " + error.getMessage());
+                }
+                
+                @Override
+                public void onComplete() {
+                    System.out.println("\n完成！");
+                }
+            }
         );
-        
-        llm.chatStream(messages, onChunk, onError, onDone);
     }
 }
 ```
@@ -176,6 +196,7 @@ public class StreamExample {
 - [API参考文档](docs/api_reference.md)：详细的API说明和用法
 - [用户指南](docs/user_guide.md)：全面的使用教程和最佳实践
 - [示例程序](src/main/java/io/github/internlm/lagent4j/examples/README.md)：各种使用场景的示例代码
+- [更新日志](CHANGELOG.md)：版本更新历史和功能变更说明
 
 ## 运行测试
 

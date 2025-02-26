@@ -32,9 +32,18 @@
         <logback.version>1.4.11</logback.version>
         <junit.version>5.10.1</junit.version>
         <mockito.version>5.7.0</mockito.version>
+        <openai.version>0.18.2</openai.version>
+        <jsoup.version>1.17.2</jsoup.version>
     </properties>
 
     <dependencies>
+        <!-- Jsoup -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>${jsoup.version}</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -55,6 +64,13 @@
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
             <version>${okhttp.version}</version>
+        </dependency>
+
+        <!-- OpenAI Client -->
+        <dependency>
+            <groupId>com.theokanning.openai-gpt3-java</groupId>
+            <artifactId>service</artifactId>
+            <version>${openai.version}</version>
         </dependency>
 
         <!-- Logging -->
