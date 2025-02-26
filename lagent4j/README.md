@@ -249,7 +249,7 @@ chmod +x github_submit.sh
 
 ## 许可证
 
-本项目采用 Apache 2.0 许可证。详情请参见 [LICENSE](LICENSE) 文件。
+本项目采用 MIT许可证。详情请参见 [LICENSE](/LICENSE) 文件。
 
 ## 联系我们
 
