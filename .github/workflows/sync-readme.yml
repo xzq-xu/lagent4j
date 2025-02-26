@@ -29,3 +29,44 @@ jobs:
           git add README.md
           git commit -m "Sync README.md" || exit 0
           git push origin main # 根据你的分支名称调整
+
+
+
+name: Sync README
+
+on:
+  push:
+    branches:
+      - main # 根据你的默认分支名称调整，例如 master
+
+jobs:
+  sync-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Verify README existence
+        run: |
+          if [ ! -f lagent4j/README.md ]; then
+            echo "Error: lagent4j/README.md does not exist!"
+            exit 1
+          fi
+
+      - name: Sync README files
+        run: |
+          cp lagent4j/README.md README.md
+
+      - name: Check for changes
+        id: changed
+        run: |
+          git diff --quiet || echo "changed=true" >> $GITHUB_ENV
+
+      - name: Commit and push changes
+        if: env.changed == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Sync README.md" || exit 0
+          git push https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git main # 根据你的分支名称调整
