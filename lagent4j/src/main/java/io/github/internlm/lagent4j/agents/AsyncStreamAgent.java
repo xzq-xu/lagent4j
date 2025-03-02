@@ -4,9 +4,9 @@ import io.github.internlm.lagent4j.actions.ActionExecutor;
 import io.github.internlm.lagent4j.agents.aggregator.DefaultAggregator;
 import io.github.internlm.lagent4j.llms.BaseLLM;
 import io.github.internlm.lagent4j.prompts.Parser;
-import io.github.internlm.lagent4j.prompts.parsers.StrParser;
 import io.github.internlm.lagent4j.schema.AgentMessage;
 import io.github.internlm.lagent4j.schema.ModelStatusCode;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>
  * 提供异步和流式消息处理功能的代理实现
  */
+@Slf4j
 public class AsyncStreamAgent extends Agent {
     
     /**
@@ -101,45 +102,68 @@ public class AsyncStreamAgent extends Agent {
             )
         );
         
+        // 用于累积决策内容和状态
+        StringBuilder decisionBuilder = new StringBuilder();
+        class DecisionState {
+            boolean made = false;
+        }
+        DecisionState state = new DecisionState();
+
         llm.chatStream(decisionMessages,
             decisionChunk -> {
-                callback.onChunk("思考中...\n" + decisionChunk, ModelStatusCode.GENERATING);
+                log.debug("思考中");
+                callback.onChunk(decisionChunk, ModelStatusCode.GENERATING);
                 
-                // 如果决定不使用工具，直接返回响应
-                if (decisionChunk.contains("决策：不使用工具")) {
-                    callback.onChunk("\n最终答案：\n" + decisionChunk, ModelStatusCode.END);
+                // 累积决策内容
+                decisionBuilder.append(decisionChunk);
+                String fullDecision = decisionBuilder.toString();
+                
+                // 如果已经做出决策，不再继续判断
+                if (state.made) {
                     return;
                 }
                 
-                // 第二步：生成工具调用格式
-                if (decisionChunk.contains("决策：使用工具")) {
+                // 判断是否已经收到完整的决策
+                if (fullDecision.contains("决策：不使用工具")) {
+                    state.made = true;
+                    log.debug("决策：不使用工具");
+                    log.debug("最终答案：\n{}", fullDecision);
+                    callback.onChunk(fullDecision, ModelStatusCode.END);
+                    return;
+                }
+                
+                // 判断是否需要使用工具
+                if (fullDecision.contains("决策：使用工具")) {
+                    state.made = true;
                     List<Map<String, String>> toolCallMessages = aggregator.aggregate(
                         memory.get(sessionId), name, outputFormat, TOOL_CALL_TEMPLATE.formatted(
                             actionExecutor.getToolsDescription(),
                             message.getContent(),
-                            decisionChunk
+                            fullDecision
                         )
                     );
                     
                     String toolCallResponse = llm.chat(toolCallMessages);
-                    callback.onChunk("\n准备调用工具...\n", ModelStatusCode.GENERATING);
+                    log.debug("准备调用工具");
+                    log.debug("工具调用格式：\n{}", toolCallResponse);
                     
                     // 第三步：解析并执行工具调用
                     String toolResult = null;
-                    if (outputFormat != null) {
-                        Object parsed = outputFormat.parseResponse(toolCallResponse);
+                    if (getToolParser() != null) {
+                        Object parsed = getToolParser().parseResponse(toolCallResponse);
                         if (parsed instanceof Map) {
                             @SuppressWarnings("unchecked")
                             Map<String, Object> toolCall = (Map<String, Object>) parsed;
                             List<Map<String, Object>> toolCalls = List.of(toolCall);
                             toolResult = processToolCalls(toolCalls);
-                            callback.onChunk("\n工具执行结果：\n" + toolResult + "\n", ModelStatusCode.GENERATING);
+                            log.debug("工具执行结果：\n{}", toolResult);
                         }
                     }
                     
                     // 如果工具执行失败，返回错误信息
                     if (toolResult == null || toolResult.isEmpty()) {
-                        callback.onChunk("\n工具执行失败，无法获取结果\n", ModelStatusCode.END);
+                        log.error("工具执行失败，无法获取结果");
+                        callback.onChunk("工具执行失败，无法获取结果", ModelStatusCode.END);
                         return;
                     }
                     
@@ -151,15 +175,16 @@ public class AsyncStreamAgent extends Agent {
                         )
                     );
                     
+                    log.debug("生成最终答案");
                     llm.chatStream(summaryMessages,
-                        summaryChunk -> callback.onChunk("\n总结：\n" + summaryChunk, ModelStatusCode.GENERATING),
+                        summaryChunk -> callback.onChunk(summaryChunk, ModelStatusCode.GENERATING),
                         callback::onError,
                         () -> callback.onChunk("", ModelStatusCode.END)
                     );
                 }
             },
             callback::onError,
-            () -> {}
+            callback::onComplete
         );
     }
 

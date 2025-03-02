@@ -113,6 +113,7 @@ public class StreamExample {
     private static void demonstrateScenarios(AsyncStreamAgent agent) {
         // 场景1：简单问答
         System.out.println("=== 场景1：简单问答 ===");
+        agent.getMemory().clearAll();
         processStreamMessage(agent, new AgentMessage(
                 "user",
                 "请解释什么是流式输出，并举一些实际的例子。"
@@ -120,6 +121,7 @@ public class StreamExample {
 
         // 场景2：使用工具搜索
         System.out.println("\n=== 场景2：使用工具搜索 ===");
+        agent.getMemory().clearAll();
         processStreamMessage(agent, new AgentMessage(
                 "user",
                 "请搜索并解释Go语言1.22版本的主要新特性。"
@@ -127,6 +129,7 @@ public class StreamExample {
 
         // 场景3：多工具组合
         System.out.println("\n=== 场景3：多工具组合 ===");
+        agent.getMemory().clearAll();
         processStreamMessage(agent, new AgentMessage(
                 "user",
                 "请搜索2024年软件开发的主要趋势，并深入分析其中最重要的三个趋势。"
@@ -181,11 +184,11 @@ public class StreamExample {
                     
                     if (!phase.equals(currentPhase.get())) {
                         currentPhase.set(phase);
-                        System.out.print("\n[" + phase + "] ");
+                        System.out.println("\n[" + phase + "] ");
                     }
 
                     // 输出内容
-                    System.out.print(chunk);
+                    System.out.println(chunk);
                     buffer.get().append(chunk);
                 } else if (status == ModelStatusCode.END) {
                     System.out.println("\n\n✨ 回答完成！");
