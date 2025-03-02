@@ -10,10 +10,7 @@ import io.github.internlm.lagent4j.llms.OpenAIModel;
 import io.github.internlm.lagent4j.prompts.parsers.JsonParser;
 import io.github.internlm.lagent4j.schema.AgentMessage;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * 多代理协作示例
